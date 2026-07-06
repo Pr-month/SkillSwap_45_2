@@ -105,7 +105,27 @@ export class AuthService {
       user: userWithoutSensitive,
     };
   }
+  async refreshTokens(userId: string, refreshToken: string) {
+    const user = await this.usersService.findOne(userId);
+    if (!user || !user.refreshToken) {
+      throw new UnauthorizedException('Доступ запрещён');
+    }
 
+    const isTokenValid = await bcrypt.compare(refreshToken, user.refreshToken);
+    if (!isTokenValid) {
+      throw new UnauthorizedException('Неверный refresh токен');
+    }
+
+    const tokens = await this.generateTokens(user);
+
+    const hashedRefreshToken = await bcrypt.hash(
+      tokens.refreshToken,
+      this.appConf.hashSalt,
+    );
+    await this.usersService.updateRefreshToken(user.id, hashedRefreshToken);
+
+    return tokens;
+  }
   private async generateTokens(user: User): Promise<{
     accessToken: string;
     refreshToken: string;
